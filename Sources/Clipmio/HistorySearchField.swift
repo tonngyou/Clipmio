@@ -40,6 +40,8 @@ struct HistorySearchField: NSViewRepresentable {
 
     func updateNSView(_ field: NSTextField, context: Context) {
         context.coordinator.parent = self
+        field.placeholderString = L10n.text("Search your copies…")
+        field.setAccessibilityLabel(L10n.text("Search history"))
         // Replacing an active marked string would break Chinese/Japanese composition.
         let composing = (field.currentEditor() as? NSTextView)?.hasMarkedText() ?? false
         if !composing && field.stringValue != text { field.stringValue = text }

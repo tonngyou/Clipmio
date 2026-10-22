@@ -299,6 +299,9 @@
 				<string>78F2048A892AC047E4C2A7A9</string>
 				<string>9A33F9DD3DF64B66F09A1870</string>
 				<string>D8B1BD1A6C0579ECED795D23</string>
+				<string>332967CCA87D3795BB266FD7</string>
+				<string>65913DDB9C006D645BDA173A</string>
+				<string>34BF332190691548B241B4AB</string>
 			</array>
 			<key>name</key>
 			<string>Sources</string>
@@ -374,6 +377,9 @@
 				<string>E1481F9F9537055BE99E42CF</string>
 				<string>9AD93E663F2659680F0F6068</string>
 				<string>12472F471B87DFC0DAEA53A3</string>
+				<string>E74869373F5BA5D54D55BDC1</string>
+				<string>216CF4F8DC71617E8669A500</string>
+				<string>229AF45C1387F3F815F83F23</string>
 			</array>
 			<key>runOnlyForDeploymentPostprocessing</key>
 			<integer>0</integer>
@@ -448,9 +454,9 @@
 				<key>GENERATE_INFOPLIST_FILE</key>
 				<string>NO</string>
 				<key>MARKETING_VERSION</key>
-				<string>0.1.0</string>
+				<string>0.1.1</string>
 				<key>CURRENT_PROJECT_VERSION</key>
-				<string>1</string>
+				<string>2</string>
 				<key>CODE_SIGN_IDENTITY</key>
 				<string>-</string>
 				<key>CODE_SIGN_STYLE</key>
@@ -514,9 +520,9 @@
 				<key>GENERATE_INFOPLIST_FILE</key>
 				<string>NO</string>
 				<key>MARKETING_VERSION</key>
-				<string>0.1.0</string>
+				<string>0.1.1</string>
 				<key>CURRENT_PROJECT_VERSION</key>
-				<string>1</string>
+				<string>2</string>
 				<key>CODE_SIGN_IDENTITY</key>
 				<string>-</string>
 				<key>CODE_SIGN_STYLE</key>
@@ -844,6 +850,60 @@
 			<string>PBXBuildFile</string>
 			<key>fileRef</key>
 			<string>D8B1BD1A6C0579ECED795D23</string>
+		</dict>
+		<key>332967CCA87D3795BB266FD7</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.swift</string>
+			<key>path</key>
+			<string>Sources/Clipmio/AppSettings.swift</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>E74869373F5BA5D54D55BDC1</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>332967CCA87D3795BB266FD7</string>
+		</dict>
+		<key>65913DDB9C006D645BDA173A</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.swift</string>
+			<key>path</key>
+			<string>Sources/Clipmio/LoginItemManager.swift</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>216CF4F8DC71617E8669A500</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>65913DDB9C006D645BDA173A</string>
+		</dict>
+		<key>34BF332190691548B241B4AB</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.swift</string>
+			<key>path</key>
+			<string>Sources/Clipmio/SettingsView.swift</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>229AF45C1387F3F815F83F23</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>34BF332190691548B241B4AB</string>
 		</dict>
 	</dict>
 	<key>rootObject</key>

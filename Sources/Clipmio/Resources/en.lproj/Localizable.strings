@@ -61,3 +61,17 @@
 "Zoom in" = "Zoom in";
 "Fit image" = "Fit";
 "Image unavailable" = "Image unavailable";
+
+/* Preferences */
+"Settings…" = "Settings…";
+"Settings" = "Settings";
+"Language" = "Language";
+"Follow System" = "Follow System";
+"Language changes immediately" = "Changes apply immediately.";
+"Launch at login" = "Launch at login";
+"Launch at login explanation" = "Start Clipmio in the menu bar when you log in to your Mac.";
+"Login item install notice" = "Login items can be changed in the installed app. They are disabled in previews.";
+"Login item approval notice" = "Enable Clipmio in macOS Login Items to finish turning this on.";
+"Login item unavailable notice" = "macOS could not find the login item. Move Clipmio to Applications and try again.";
+"Login item failed notice" = "The change could not be completed. Check macOS Login Items and try again.";
+"Open Login Items Settings" = "Open Login Items Settings…";

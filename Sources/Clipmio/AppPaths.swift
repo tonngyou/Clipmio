@@ -13,12 +13,16 @@ enum AppPaths {
     }
 }
 
+@MainActor
 enum L10n {
     static func text(_ key: String) -> String {
-        #if SWIFT_PACKAGE
-        Bundle.module.localizedString(forKey: key, value: key, table: nil)
-        #else
-        Bundle.main.localizedString(forKey: key, value: key, table: nil)
-        #endif
+        text(key, language: AppSettings.shared.language)
+    }
+
+    static func text(_ key: String, language: AppLanguage) -> String {
+        let resources = ClipmioTheme.resourceBundle
+        guard let path = resources.path(forResource: language.localizationIdentifier, ofType: "lproj"),
+              let bundle = Bundle(path: path) else { return key }
+        return bundle.localizedString(forKey: key, value: key, table: nil)
     }
 }

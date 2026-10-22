@@ -61,3 +61,17 @@
 "Zoom in" = "放大圖片";
 "Fit image" = "符合視窗";
 "Image unavailable" = "暫時無法讀取圖片";
+
+/* Preferences */
+"Settings…" = "設定…";
+"Settings" = "設定";
+"Language" = "語言";
+"Follow System" = "跟隨系統";
+"Language changes immediately" = "切換後立即生效。";
+"Launch at login" = "開機自動啟動";
+"Launch at login explanation" = "登入 Mac 後自動啟動 Clipmio，並顯示選單列圖示。";
+"Login item install notice" = "請在安裝後的應用程式中設定自動啟動；預覽模式不會修改登入項目。";
+"Login item approval notice" = "請在 macOS 登入項目設定中允許 Clipmio，以完成開啟。";
+"Login item unavailable notice" = "macOS 找不到登入項目。請將 Clipmio 移入「應用程式」後重試。";
+"Login item failed notice" = "無法完成更改。請檢查 macOS 登入項目設定後重試。";
+"Open Login Items Settings" = "開啟登入項目設定…";

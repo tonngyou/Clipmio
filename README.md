@@ -56,6 +56,15 @@ A small, native clipboard history for macOS 14+. Made by [tonngyou](https://gith
 
 自动粘贴等待 Return 和修饰键松开，再关闭面板、恢复原应用焦点，向原进程发送一组 `⌘V`。如果原应用退出、焦点未能稳定、剪贴板已改变或请求被取消，就停止发送。若目标应用拒绝模拟粘贴，可用右键“复制”后手动 `⌘V`。输入法仍在组词时，上下键和回车交给输入法处理。
 
+## 语言与开机自启动
+
+打开剪贴板面板右上角的 **… → 设置…**：
+
+- **语言**：跟随系统、简体中文、繁體中文、English。切换立即生效，并记住选择；复制内容不做翻译。
+- **开机自启动**：默认不自动注册，按需开启。通过 macOS 的登录项服务在用户登录后启动，并只显示菜单栏图标。若系统要求批准，点击“打开登录项设置…”完成允许；关闭开关会注销登录项。
+
+登录项状态以 macOS 为准，从系统设置返回后会刷新。请先把应用放入“应用程序”，避免注册后再移动应用。预览模式和直接运行 SwiftPM 可执行文件时不修改登录项；自动测试使用替身服务，不更改本机自启动设置。
+
 ## 安装到本机使用
 
 将构建好的 `dist/Clipmio.app` 拖到 **应用程序（Applications）** 文件夹，再双击打开；以后无需启动 Xcode。运行后点击菜单栏的 Clipmio 图标，或按 `⌘⇧V` 查看历史，没有 Dock 图标是正常行为。
@@ -142,7 +151,7 @@ open dist/Clipmio.app
 UNIVERSAL=1 bash scripts/build.sh
 ```
 
-成品在 `dist/Clipmio.app` 和 `dist/Clipmio-0.1.0.zip`。更新版本号时修改 Xcode 工程中的 `MARKETING_VERSION` 和 `CURRENT_PROJECT_VERSION`。正式发行需要自己的 Developer ID 证书、hardened runtime、公证和下载验证，见 [发布说明](docs/RELEASING.md)。
+成品在 `dist/Clipmio.app` 和 `dist/Clipmio-0.1.1.zip`。更新版本号时修改 Xcode 工程中的 `MARKETING_VERSION` 和 `CURRENT_PROJECT_VERSION`。正式发行需要自己的 Developer ID 证书、hardened runtime、公证和下载验证，见 [发布说明](docs/RELEASING.md)。
 
 ## 开源与作者
 

@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastExternalApplication: NSRunningApplication?
     private let hotKey = GlobalHotKey()
     private var isDemo = false
+    private var loginItem: LoginItemManager!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -28,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: NSWorkspace.didActivateApplicationNotification, object: nil)
         let demo = ProcessInfo.processInfo.arguments.contains("--demo")
         isDemo = demo
+        loginItem = LoginItemManager(canManage: !demo && Bundle.main.bundleURL.pathExtension == "app")
         if demo && ProcessInfo.processInfo.arguments.contains("--dark") {
             NSApp.appearance = NSAppearance(named: .darkAqua)
         }
@@ -91,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentViewController = NSHostingController(rootView:
             ClipboardView(history: history, monitor: monitor, hotKey: hotKey,
                           pasteService: pasteService, isDemo: isDemo,
+                          settings: AppSettings.shared, loginItem: loginItem,
                           onPaste: { [weak self] entry in self?.paste(entry) },
                           onCopy: { [weak self] entry in self?.copy(entry) },
                           onDismiss: { [weak self] in self?.dismissPopover() },

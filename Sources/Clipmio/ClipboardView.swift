@@ -11,6 +11,8 @@ struct ClipboardView: View {
     let hotKey: GlobalHotKey
     let pasteService: PasteService
     let isDemo: Bool
+    let settings: AppSettings
+    let loginItem: LoginItemManager
     let onPaste: (ClipEntry) -> Void
     let onCopy: (ClipEntry) -> Void
     let onDismiss: () -> Void
@@ -22,6 +24,7 @@ struct ClipboardView: View {
     @State private var selection = HistorySelection()
     @State private var previewEntry: ClipEntry?
     @State private var isNavigatingHistory = false
+    @State private var showingSettings = false
 
     private var accent: Color { ClipmioTheme.accent(for: colorScheme) }
     private var surface: Color {
@@ -39,7 +42,10 @@ struct ClipboardView: View {
 
     var body: some View {
         Group {
-            if let entry = previewEntry {
+            if showingSettings {
+                SettingsView(settings: settings, loginItem: loginItem,
+                             onClose: { showingSettings = false })
+            } else if let entry = previewEntry {
                 EntryPreviewView(entry: entry, history: history,
                                  onClose: { previewEntry = nil },
                                  onCopy: { onCopy(entry) }, onPaste: { onPaste(entry) })
@@ -53,6 +59,7 @@ struct ClipboardView: View {
             LinearGradient(colors: [surface, canvas], startPoint: .top, endPoint: .bottom)
         }
         .tint(accent)
+        .environment(\.locale, settings.language.locale)
         .onChange(of: previewEntry != nil) { _, visible in onPreviewChange(visible) }
         .alert(L10n.text("Clear all history?"), isPresented: $confirmClear) {
             Button(L10n.text("Cancel"), role: .cancel) {}
@@ -129,6 +136,12 @@ struct ClipboardView: View {
                 }
                 .disabled(history.entries.isEmpty && history.storageIssue == nil)
                 Divider()
+                Button {
+                    pasteService.cancel()
+                    showingSettings = true
+                } label: {
+                    Label(L10n.text("Settings…"), systemImage: "gearshape")
+                }
                 Button(L10n.text("About Clipmio")) { showAbout() }
                 Link("GitHub · tonngyou", destination: URL(string: "https://github.com/tonngyou")!)
                 Divider()
@@ -430,6 +443,7 @@ private enum ClipboardPreview {
         let monitor = ClipboardMonitor(history: history)
         return ClipboardView(history: history, monitor: monitor, hotKey: GlobalHotKey(),
                              pasteService: PasteService(monitor: monitor), isDemo: true,
+                             settings: .shared, loginItem: LoginItemManager(canManage: false),
                              onPaste: { _ in }, onCopy: { _ in }, onDismiss: {}, onPreviewChange: { _ in })
     }
 }
