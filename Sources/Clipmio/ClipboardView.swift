@@ -16,8 +16,11 @@ struct ClipboardView: View {
     let onPaste: (ClipEntry) -> Void
     let onCopy: (ClipEntry) -> Void
     let onDismiss: () -> Void
+    let onRestart: () -> Void
     let onPreviewChange: (Bool) -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var filterHighlight
     @State private var query = ""
     @State private var hoveredID: UUID?
     @State private var confirmClear = false
@@ -25,6 +28,8 @@ struct ClipboardView: View {
     @State private var previewEntry: ClipEntry?
     @State private var isNavigatingHistory = false
     @State private var showingSettings = false
+    @State private var selectedTab: HistoryTab = .all
+    private var favoritesOnly: Bool { selectedTab == .favorites }
 
     private var accent: Color { ClipmioTheme.accent(for: colorScheme) }
     private var surface: Color {
@@ -34,38 +39,49 @@ struct ClipboardView: View {
         colorScheme == .dark ? Color(red: 0.105, green: 0.102, blue: 0.13)
                             : Color(red: 0.972, green: 0.969, blue: 0.986)
     }
-    private var results: [ClipEntry] { history.matching(query) }
+    private var results: [ClipEntry] { history.matching(query, favoritesOnly: favoritesOnly) }
     private var resultIDs: [UUID] { results.map(\.id) }
     private var selectedEntry: ClipEntry? {
         results.first { $0.id == selection.selectedID } ?? results.first
     }
 
+    private var navigationAnimation: Animation {
+        reduceMotion ? .easeOut(duration: 0.1) : .smooth(duration: 0.24)
+    }
     var body: some View {
         Group {
             if showingSettings {
-                SettingsView(settings: settings, loginItem: loginItem,
+                SettingsView(settings: settings, loginItem: loginItem, hotKey: hotKey,
                              onClose: { showingSettings = false })
+                    .frame(width: ClipmioTheme.panelSize.width, height: ClipmioTheme.panelSize.height)
+                    .modifier(ContentEntrance(reduceMotion: reduceMotion))
             } else if let entry = previewEntry {
                 EntryPreviewView(entry: entry, history: history,
-                                 onClose: { previewEntry = nil },
-                                 onCopy: { onCopy(entry) }, onPaste: { onPaste(entry) })
+                                 onClose: closePreview,
+                                 onCopy: { onCopy(entry) }, onPaste: { onPaste(entry) },
+                                 isActive: { previewEntry?.id == entry.id && !showingSettings })
+                    .frame(width: ClipmioTheme.previewPanelSize.width, height: ClipmioTheme.previewPanelSize.height)
+                    .modifier(ContentEntrance(reduceMotion: reduceMotion))
             } else {
                 historyContent
+                    .frame(width: ClipmioTheme.panelSize.width, height: ClipmioTheme.panelSize.height)
             }
         }
         .frame(width: previewEntry == nil ? ClipmioTheme.panelSize.width : ClipmioTheme.previewPanelSize.width,
-               height: previewEntry == nil ? ClipmioTheme.panelSize.height : ClipmioTheme.previewPanelSize.height)
+               height: previewEntry == nil ? ClipmioTheme.panelSize.height : ClipmioTheme.previewPanelSize.height,
+               alignment: .topLeading)
+        .clipped()
         .background {
             LinearGradient(colors: [surface, canvas], startPoint: .top, endPoint: .bottom)
         }
         .tint(accent)
         .environment(\.locale, settings.language.locale)
         .onChange(of: previewEntry != nil) { _, visible in onPreviewChange(visible) }
-        .alert(L10n.text("Clear all history?"), isPresented: $confirmClear) {
+        .alert(L10n.text("Clear recent history?"), isPresented: $confirmClear) {
             Button(L10n.text("Cancel"), role: .cancel) {}
-            Button(L10n.text("Clear History"), role: .destructive) { history.clear() }
+            Button(L10n.text("Clear Recent History"), role: .destructive) { history.clear(keepingFavorites: true) }
         } message: {
-            Text(L10n.text("Clear history explanation"))
+            Text(L10n.text("Clear recent explanation"))
         }
         .onAppear { selection.reconcile(with: resultIDs) }
         .onChange(of: query) { _, _ in
@@ -73,9 +89,13 @@ struct ClipboardView: View {
             isNavigatingHistory = false
             selection.reconcile(with: resultIDs, reset: true)
         }
+        .onChange(of: favoritesOnly) { _, _ in
+            pasteService.cancel()
+            selection.reconcile(with: resultIDs, reset: true)
+        }
         .onChange(of: resultIDs) { _, ids in
             selection.reconcile(with: ids)
-            if let entry = previewEntry, !ids.contains(entry.id) { previewEntry = nil }
+            if let entry = previewEntry, !ids.contains(entry.id) { closePreview() }
         }
     }
 
@@ -85,39 +105,59 @@ struct ClipboardView: View {
             search
                 .padding(.horizontal, 20)
             notices
-            collectionHeading
-            if results.isEmpty {
-                emptyState
-            } else {
-                ScrollViewReader { reader in
-                    ScrollView {
-                        LazyVStack(spacing: 8) {
-                            ForEach(results) { entry in row(entry).id(entry.id) }
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.top, 2)
-                        .padding(.bottom, 14)
+            VStack(spacing: 0) {
+                collectionHeading
+                historyResults
+                    .modifier(ContentEntrance(reduceMotion: reduceMotion, offset: favoritesOnly ? 6 : -6))
+                    .id(selectedTab)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+            }
+            .contentShape(Rectangle())
+            .highPriorityGesture(DragGesture(minimumDistance: 20).onEnded { value in
+                if let offset = HistoryTab.dragOffset(x: value.translation.width, y: value.translation.height) {
+                    navigateTabs(offset)
+                }
+            })
+            .background(HistoryTabGesture(isActive: { previewEntry == nil && !showingSettings },
+                                         onNavigate: navigateTabs).allowsHitTesting(false))
+            footer
+        }
+    }
+
+    @ViewBuilder private var historyResults: some View {
+        if results.isEmpty {
+            emptyState
+        } else {
+            ScrollViewReader { reader in
+                ScrollView {
+                    // Keep the bounded regular stack used by the stability fix.
+                    VStack(spacing: settings.compactLayout ? 5 : 8) {
+                        ForEach(results) { entry in row(entry).id(entry.id) }
                     }
-                    .onChange(of: selection.selectedID) { _, id in
-                        if let id { reader.scrollTo(id, anchor: .center) }
-                    }
+                    .padding(.horizontal, 14)
+                    .padding(.top, 2)
+                    .padding(.bottom, 14)
+                }
+                .onChange(of: selection.selectedID) { _, id in
+                    if let id { reader.scrollTo(id, anchor: .center) }
                 }
             }
-            footer
         }
     }
 
     private var header: some View {
         HStack(spacing: 12) {
             ClipmioMark()
-                .frame(width: 48, height: 48)
+                .frame(width: settings.compactLayout ? 30 : 40, height: settings.compactLayout ? 30 : 40)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Clipmio")
-                    .font(.system(size: 23, weight: .semibold, design: .rounded))
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .tracking(-0.7)
-                Text(L10n.text("Your copies, within reach."))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                if !settings.compactLayout {
+                    Text(L10n.text("Your copies, within reach."))
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                }
             }
             Spacer()
             Menu {
@@ -132,9 +172,9 @@ struct ClipboardView: View {
                           systemImage: monitor.isPaused ? "play" : "pause")
                 }
                 Button(role: .destructive) { confirmClear = true } label: {
-                    Label(L10n.text("Clear History"), systemImage: "trash")
+                    Label(L10n.text("Clear Recent History"), systemImage: "trash")
                 }
-                .disabled(history.entries.isEmpty && history.storageIssue == nil)
+                .disabled(!history.entries.contains(where: { !$0.isFavorite }) && history.storageIssue == nil)
                 Divider()
                 Button {
                     pasteService.cancel()
@@ -145,6 +185,7 @@ struct ClipboardView: View {
                 Button(L10n.text("About Clipmio")) { showAbout() }
                 Link("GitHub · tonngyou", destination: URL(string: "https://github.com/tonngyou")!)
                 Divider()
+                Button(L10n.text("Restart Clipmio"), action: onRestart)
                 Button(L10n.text("Quit Clipmio")) { NSApp.terminate(nil) }
             } label: {
                 Image(systemName: "ellipsis")
@@ -160,8 +201,7 @@ struct ClipboardView: View {
             .accessibilityLabel(L10n.text("More options"))
         }
         .padding(.horizontal, 20)
-        .padding(.top, 22)
-        .padding(.bottom, 21)
+        .padding(.vertical, settings.compactLayout ? 12 : 16)
     }
 
     private var search: some View {
@@ -183,7 +223,12 @@ struct ClipboardView: View {
                                onPreview: selectedEntry == nil ? nil : {
                                    if let entry = selectedEntry { showPreview(entry) }
                                },
-                               isNavigatingHistory: isNavigatingHistory)
+                               onSwitchTab: {
+                                   navigateTabs($0)
+                                   isNavigatingHistory = true
+                               },
+                               isNavigatingHistory: isNavigatingHistory,
+                               isActive: { previewEntry == nil && !showingSettings })
             if !query.isEmpty {
                 Button { query = "" } label: {
                     Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
@@ -193,7 +238,7 @@ struct ClipboardView: View {
             }
         }
         .padding(.horizontal, 13)
-        .frame(height: 42)
+        .frame(height: 36)
         .background(accent.opacity(colorScheme == .dark ? 0.08 : 0.045),
                     in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(accent.opacity(0.13)))
@@ -204,7 +249,7 @@ struct ClipboardView: View {
             pasteFailureNotice(failure)
         }
         if hotKey.registrationError != nil {
-            notice(L10n.text("Shortcut unavailable notice"), symbol: "keyboard.badge.ellipsis")
+            notice(hotKey.shortcutLabel + " · " + L10n.text("Custom shortcut unavailable notice"), symbol: "keyboard.badge.ellipsis")
         }
         if let issue = history.storageIssue {
             notice(L10n.text(issue == .unreadableHistory ? "Unreadable history notice" : "Save failed notice"),
@@ -224,14 +269,8 @@ struct ClipboardView: View {
 
     private var collectionHeading: some View {
         HStack(spacing: 7) {
-            Text(L10n.text(query.isEmpty ? "Recent copies" : "Search results"))
-                .font(.system(size: 11, weight: .medium))
-            Text("\(results.count)")
-                .font(.system(size: 10, weight: .medium, design: .rounded))
-                .monospacedDigit()
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(.primary.opacity(0.045), in: Capsule())
+            filterButton("All copies", favorites: false)
+            filterButton("Favorites", favorites: true)
             Spacer()
             Button {
                 if let entry = selectedEntry { showPreview(entry) }
@@ -243,85 +282,154 @@ struct ClipboardView: View {
             .help(L10n.text("Preview selected item"))
             .accessibilityLabel(L10n.text("Preview selected item"))
             if hotKey.isRegistered {
-                keyCap(GlobalHotKey.shortcutLabel)
+                keyCap(hotKey.shortcutLabel)
                     .help(L10n.text("Show or hide history"))
             }
         }
         .foregroundStyle(.secondary)
         .padding(.horizontal, 22)
-        .padding(.top, 19)
-        .padding(.bottom, 11)
+        .padding(.top, 12)
+        .padding(.bottom, 9)
+    }
+
+    private func filterButton(_ title: String, favorites: Bool) -> some View {
+        let count = history.matching(query, favoritesOnly: favorites).count
+        return Button {
+            selectTab(favorites ? .favorites : .all)
+        } label: {
+            HStack(spacing: 4) {
+                if favorites { Image(systemName: "star.fill").font(.system(size: 9)) }
+                Text(L10n.text(title)).font(.system(size: 11, weight: .medium))
+                Text("\(count)")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(.primary.opacity(0.045), in: Capsule())
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .foregroundStyle(favoritesOnly == favorites ? accent : .secondary)
+            .padding(.horizontal, 7).padding(.vertical, 4)
+            .background {
+                if favoritesOnly == favorites {
+                    if reduceMotion {
+                        Capsule().fill(accent.opacity(0.09))
+                    } else {
+                        Capsule().fill(accent.opacity(0.09))
+                            .matchedGeometryEffect(id: "filterSelection", in: filterHighlight)
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .animation(navigationAnimation, value: selectedTab)
+        .help(L10n.text("Swipe between tabs"))
+        .accessibilityLabel("\(L10n.text(title)) \(count)")
+        .accessibilityAddTraits(favoritesOnly == favorites ? .isSelected : [])
     }
 
     private func row(_ entry: ClipEntry) -> some View {
         let selected = selection.selectedID == entry.id
         let hovered = hoveredID == entry.id
-        return Button { onPaste(entry) } label: {
-            HStack(alignment: .top, spacing: 11) {
-                Image(systemName: entry.image != nil ? "photo" : isLink(entry.text) ? "link" : "text.alignleft")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(selected ? accent : .secondary)
-                    .frame(width: 30, height: 32)
-                    .background(accent.opacity(selected ? 0.09 : 0.045),
-                                in: RoundedRectangle(cornerRadius: 9))
-                VStack(alignment: .leading, spacing: 9) {
-                    if entry.image != nil {
-                        ImageThumbnailView(entry: entry, history: history)
+        return HStack(spacing: 4) {
+            Button { onPaste(entry) } label: {
+                HStack(alignment: .center, spacing: 10) {
+                    SourceAppIcon(entry: entry)
+                    if entry.image != nil && settings.compactLayout {
+                        ImageThumbnailView(entry: entry, history: history, compact: true)
+                            .frame(width: 40)
                     }
-                    Text(entryDescription(entry))
-                        .font(.system(size: 13))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .foregroundStyle(.primary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    HStack(spacing: 5) {
-                        Text(entry.sourceName ?? L10n.text(entry.image == nil ? "Text" : "Image"))
-                            .lineLimit(1)
-                        Text("·")
-                        Text(entry.copiedAt, format: .dateTime.hour().minute())
-                            .lineLimit(1)
+                    VStack(alignment: .leading, spacing: settings.compactLayout ? 4 : 7) {
+                        if entry.image != nil && !settings.compactLayout {
+                            ImageThumbnailView(entry: entry, history: history)
+                        }
+                        Text(verbatim: entryDescription(entry))
+                            .font(.system(size: 12))
+                            .lineLimit(settings.compactLayout ? 1 : 2)
+                            .multilineTextAlignment(.leading)
+                            .foregroundStyle(.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        HStack(spacing: 4) {
+                            Text(verbatim: entry.sourceName ?? L10n.text(entry.image == nil ? "Text" : "Image"))
+                                .lineLimit(1)
+                            Text("·")
+                            Text(entry.copiedAt, format: .dateTime.hour().minute()).lineLimit(1)
+                        }
+                        .font(.system(size: 9)).foregroundStyle(.secondary)
                     }
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                    if !settings.compactLayout {
+                        Image(systemName: "return")
+                            .font(.system(size: 10, weight: .medium)).foregroundStyle(accent)
+                            .opacity(hovered || selected ? 1 : 0).accessibilityHidden(true)
+                    }
                 }
-                Image(systemName: "return")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(accent)
-                    .frame(width: 22, height: 20)
-                    .background(accent.opacity(0.09), in: RoundedRectangle(cornerRadius: 5))
-                    .opacity(hovered || selected ? 1 : 0)
-                    .accessibilityHidden(true)
+                .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .padding(13)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background {
-                RoundedRectangle(cornerRadius: 13).fill(surface)
-                RoundedRectangle(cornerRadius: 13)
-                    .fill(accent.opacity(selected ? 0.09 : hovered ? 0.035 : 0))
+            .buttonStyle(.plain)
+            .help(L10n.text("Paste this item"))
+            .accessibilityLabel(L10n.text("Paste") + ": " + entryDescription(entry))
+            .accessibilityAddTraits(selected ? .isSelected : [])
+            Button {
+                history.setFavorite(!entry.isFavorite, id: entry.id)
+            } label: {
+                Image(systemName: entry.isFavorite ? "star.fill" : "star")
+                    .font(.system(size: 12))
+                    .foregroundStyle(entry.isFavorite ? accent : .secondary.opacity(0.65))
+                    .frame(width: 24, height: 30).contentShape(Rectangle())
             }
-            .overlay {
-                RoundedRectangle(cornerRadius: 13)
-                    .strokeBorder(selected ? accent.opacity(0.33) : .primary.opacity(0.045))
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 13))
+            .buttonStyle(.plain)
+            .disabled(!entry.isFavorite && !history.canAddFavorite)
+            .help(L10n.text(!entry.isFavorite && !history.canAddFavorite ? "Favorites limit" : entry.isFavorite ? "Remove favorite" : "Add favorite"))
+            .accessibilityLabel(L10n.text(entry.isFavorite ? "Remove favorite" : "Add favorite") + ": " + String(entryDescription(entry).prefix(60)))
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 11)
+        .padding(.vertical, settings.compactLayout ? 8 : 12)
+        .background {
+            RoundedRectangle(cornerRadius: 10).fill(surface)
+            RoundedRectangle(cornerRadius: 10)
+                .fill(accent.opacity(selected ? 0.09 : hovered ? 0.035 : 0))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(selected ? accent.opacity(0.33) : .primary.opacity(0.045))
+        }
         .onHover { hoveredID = $0 ? entry.id : nil }
-        .help(L10n.text("Paste this item"))
-        .accessibilityLabel(L10n.text("Paste") + ": " + entryDescription(entry))
-        .accessibilityAddTraits(selected ? .isSelected : [])
         .contextMenu {
             Button(L10n.text("Preview")) { showPreview(entry) }
+            Button(L10n.text(entry.isFavorite ? "Remove favorite" : "Add favorite")) {
+                history.setFavorite(!entry.isFavorite, id: entry.id)
+            }
+            .disabled(!entry.isFavorite && !history.canAddFavorite)
             Button(L10n.text("Paste")) { onPaste(entry) }
             Button(L10n.text("Copy")) { onCopy(entry) }
             Button(L10n.text("Delete"), role: .destructive) { history.remove(id: entry.id) }
         }
     }
 
+    private func selectTab(_ tab: HistoryTab) {
+        guard tab != selectedTab else { return }
+        pasteService.cancel()
+        isNavigatingHistory = false
+        // Replace the data immediately; animate only the incoming list and tab highlight.
+        selectedTab = tab
+    }
+
+    private func navigateTabs(_ offset: Int) {
+        guard previewEntry == nil && !showingSettings,
+              let tab = selectedTab.neighbor(by: offset) else { return }
+        selectTab(tab)
+    }
+
     private func showPreview(_ entry: ClipEntry) {
+        guard previewEntry == nil && !showingSettings else { return }
         pasteService.cancel()
         selection.select(entry.id, in: resultIDs)
         previewEntry = entry
+    }
+
+    private func closePreview() {
+        previewEntry = nil
     }
 
     private func entryDescription(_ entry: ClipEntry) -> String {
@@ -333,17 +441,17 @@ struct ClipboardView: View {
 
     private var emptyState: some View {
         VStack(spacing: 10) {
-            if query.isEmpty {
+            if query.isEmpty && !favoritesOnly {
                 ClipmioMark().frame(width: 76, height: 76).padding(.bottom, 6)
             } else {
-                Image(systemName: "magnifyingglass")
+                Image(systemName: favoritesOnly && query.isEmpty ? "star" : "magnifyingglass")
                     .font(.system(size: 30, weight: .light))
                     .foregroundStyle(accent.opacity(0.6))
                     .padding(.bottom, 12)
             }
-            Text(L10n.text(query.isEmpty ? "A fresh clipboard." : "No matches yet."))
+            Text(L10n.text(favoritesOnly && query.isEmpty ? "No favorites yet" : query.isEmpty ? "A fresh clipboard." : "No matches yet."))
                 .font(.system(size: 14, weight: .medium))
-            Text(L10n.text(query.isEmpty ? "Copy some text to get started." : "Try a different word or app name."))
+            Text(L10n.text(favoritesOnly && query.isEmpty ? "Favorites explanation" : query.isEmpty ? "Copy some text to get started." : "Try a different word or app name."))
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
         }
@@ -369,11 +477,13 @@ struct ClipboardView: View {
                 Text(L10n.text(isDemo ? "Demo" : monitor.isPaused ? "Paused" : "Local only"))
                 Spacer(minLength: 8)
                 Text(L10n.text("Navigate and paste"))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
             .font(.system(size: 10))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 22)
-            .frame(height: 40)
+            .frame(height: 32)
         }
         .background(surface.opacity(0.65))
     }
@@ -444,6 +554,6 @@ private enum ClipboardPreview {
         return ClipboardView(history: history, monitor: monitor, hotKey: GlobalHotKey(),
                              pasteService: PasteService(monitor: monitor), isDemo: true,
                              settings: .shared, loginItem: LoginItemManager(canManage: false),
-                             onPaste: { _ in }, onCopy: { _ in }, onDismiss: {}, onPreviewChange: { _ in })
+                             onPaste: { _ in }, onCopy: { _ in }, onDismiss: {}, onRestart: {}, onPreviewChange: { _ in })
     }
 }

@@ -6,6 +6,40 @@ import XCTest
 
 final class PreviewKeyboardTests: XCTestCase {
     @MainActor
+    func testOutgoingPreviewStopsConsumingKeysBeforeItsTransitionCompletes() {
+        var active = true
+        var closes = 0
+        var pastes = 0
+        let actions = PreviewKeyboardActions(close: { closes += 1 }, paste: { pastes += 1 },
+                                             isEnabled: { active })
+        XCTAssertTrue(actions.handle(keyCode: UInt16(kVK_Space), modifiers: [], isRepeat: false, composing: false))
+        active = false
+        for key in [kVK_Space, kVK_Escape, kVK_Return] {
+            XCTAssertFalse(actions.handle(keyCode: UInt16(key), modifiers: [], isRepeat: false, composing: false))
+        }
+        XCTAssertEqual(closes, 1)
+        XCTAssertEqual(pastes, 0)
+    }
+
+    @MainActor
+    func testOutgoingSearchCannotOpenAnotherPreviewOrPasteDuringTransition() {
+        var active = true
+        var previews = 0
+        var pastes = 0
+        let field = HistorySearchField(text: .constant(""), onMove: { _ in }, onSubmit: { pastes += 1 },
+                                      onEscape: {}, onPreview: { previews += 1 }, isActive: { active })
+        let coordinator = field.makeCoordinator()
+        active = false
+        XCTAssertFalse(coordinator.handleSpace(searchText: "", composing: false, modifiers: [], isRepeat: false))
+        XCTAssertFalse(coordinator.handle(command: #selector(NSResponder.insertNewline(_:)), composing: false, modifiers: []))
+        XCTAssertEqual(previews, 0)
+        XCTAssertEqual(pastes, 0)
+        active = true
+        XCTAssertTrue(coordinator.handleSpace(searchText: "", composing: false, modifiers: [], isRepeat: false))
+        XCTAssertEqual(previews, 1)
+    }
+
+    @MainActor
     func testSpaceOpensSelectionWhenSearchIsEmpty() {
         var previews = 0
         let field = HistorySearchField(text: .constant(""), onMove: { _ in }, onSubmit: {}, onEscape: {},

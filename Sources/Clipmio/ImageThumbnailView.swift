@@ -8,19 +8,20 @@ import ClipmioCore
 struct ImageThumbnailView: View {
     let entry: ClipEntry
     let history: HistoryStore
+    var compact = false
     @State private var thumbnail: NSImage?
 
     var body: some View {
         Group {
             if let thumbnail {
-                Image(nsImage: thumbnail).resizable().scaledToFit().padding(5)
+                Image(nsImage: thumbnail).resizable().scaledToFit().padding(compact ? 2 : 5)
             } else {
                 Image(systemName: "photo").foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 100)
+        .frame(height: compact ? 36 : 100)
         .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .accessibilityHidden(true)

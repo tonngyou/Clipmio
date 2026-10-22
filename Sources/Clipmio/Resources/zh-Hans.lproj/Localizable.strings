@@ -35,7 +35,7 @@
 "Retry Shortcut" = "重试注册快捷键";
 "Show or hide history" = "打开或收起剪贴板历史";
 "Paste this item" = "直接粘贴到之前的应用";
-"Navigate and paste" = "↑↓ 选择 · 空格预览 · ↩ 粘贴";
+"Navigate and paste" = "←→ 栏目 · ↑↓ 选择 · 空格预览 · ↩ 粘贴";
 "Enable Automatic Paste" = "开启自动粘贴…";
 "Paste accessibility notice" = "内容已复制。允许辅助功能访问后，即可自动粘贴到其他应用。";
 "Paste target notice" = "内容已复制。请从目标应用呼出历史，或使用右键菜单中的“复制”。";
@@ -75,3 +75,35 @@
 "Login item unavailable notice" = "macOS 无法找到登录项。请将 Clipmio 移入“应用程序”后重试。";
 "Login item failed notice" = "无法完成更改。请检查 macOS 登录项设置后重试。";
 "Open Login Items Settings" = "打开登录项设置…";
+
+/* App recovery */
+"Show History" = "打开剪贴板历史";
+"Restart Clipmio" = "重启 Clipmio…";
+"Restart failed" = "无法重启 Clipmio";
+"Restart failed explanation" = "Clipmio 仍在运行。请退出后从“应用程序”重新打开。";
+"OK" = "好";
+
+/* Compact history, favorites and custom shortcut */
+"Compact layout" = "紧凑布局";
+"Compact layout explanation" = "缩小卡片和图片缩略图，一屏显示更多记录。";
+"Global shortcut" = "全局快捷键";
+"Press shortcut…" = "请按组合键…";
+"Record shortcut" = "录入快捷键";
+"Shortcut recording hint" = "请按包含 ⌘ 或 ⌃ 的组合键，Esc 取消。";
+"Shortcut explanation" = "点击录入组合键，修改后立即生效。";
+"Shortcut conflict" = "该快捷键不可用，已保留原快捷键。";
+"Shortcut invalid" = "请使用 ⌘ 或 ⌃，搭配字母、数字、方向键或功能键。";
+"Restore default shortcut" = "恢复默认 ⌘⇧V";
+"Custom shortcut unavailable notice" = "快捷键不可用，请在设置中修改或重试注册。";
+"All copies" = "全部";
+"Favorites" = "收藏";
+"Add favorite" = "添加收藏";
+"Remove favorite" = "取消收藏";
+"Favorites limit" = "最多收藏 50 条，取消部分收藏后可继续添加。";
+"No favorites yet" = "还没有收藏";
+"Favorites explanation" = "点击记录旁的星标收藏，清空历史时也会保留。";
+"Clear Recent History" = "清空最近记录";
+"Clear recent history?" = "清空最近记录？";
+"Clear recent explanation" = "最近记录将被永久删除。收藏和当前系统剪贴板会保留。";
+
+"Swipe between tabs" = "左右拖动、滑动或按 ←/→ 切换栏目。编辑搜索文字时左右键移动光标；先按 ↑/↓ 可进入浏览。";

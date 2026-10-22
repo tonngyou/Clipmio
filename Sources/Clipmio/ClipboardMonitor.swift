@@ -93,6 +93,7 @@ final class ClipboardMonitor {
         } else {
             sourceName = frontmost?.localizedName
         }
+        let sourceBundleID = declaredSource ?? frontmost?.bundleIdentifier
         // A copied picture can also advertise a URL/string. Prefer the actual pixels.
         let imageTypes = ClipboardImage.readableTypes.map { NSPasteboard.PasteboardType($0.identifier) }
         let copiedFile = singleImageFileURL()
@@ -108,7 +109,7 @@ final class ClipboardMonitor {
                                                                onCancel: { worker.cancel() })
                     guard !Task.isCancelled, pasteboard.changeCount == current, !isPaused else { return }
                     if let png {
-                        history.captureImage(png, sourceName: sourceName)
+                        history.captureImage(png, sourceName: sourceName, sourceBundleID: sourceBundleID)
                         return
                     }
                 }
@@ -124,19 +125,19 @@ final class ClipboardMonitor {
                                                                onCancel: { worker.cancel() })
                     guard !Task.isCancelled, pasteboard.changeCount == current, !isPaused else { return }
                     if let png {
-                        history.captureImage(png, sourceName: sourceName)
+                        history.captureImage(png, sourceName: sourceName, sourceBundleID: sourceBundleID)
                         return
                     }
                 }
                 if let text = pasteboard.string(forType: .string), pasteboard.changeCount == current {
-                    history.capture(text, sourceName: sourceName)
+                    history.capture(text, sourceName: sourceName, sourceBundleID: sourceBundleID)
                 }
             }
             imageTask = task
             return task
         }
         guard let text = pasteboard.string(forType: .string), pasteboard.changeCount == current else { return nil }
-        history.capture(text, sourceName: sourceName)
+        history.capture(text, sourceName: sourceName, sourceBundleID: sourceBundleID)
         return nil
     }
 

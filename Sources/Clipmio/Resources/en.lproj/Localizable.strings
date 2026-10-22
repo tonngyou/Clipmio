@@ -35,7 +35,7 @@
 "Retry Shortcut" = "Retry Shortcut";
 "Show or hide history" = "Show or hide history";
 "Paste this item" = "Paste this item into the previous app";
-"Navigate and paste" = "↑↓ select · Space preview · ↩ paste";
+"Navigate and paste" = "←→ tabs · ↑↓ select · Space preview · ↩ paste";
 "Enable Automatic Paste" = "Enable Automatic Paste…";
 "Paste accessibility notice" = "Text copied. Allow Accessibility access to paste automatically into other apps.";
 "Paste target notice" = "Text copied. Open history from the app you want to paste into, or use Copy from the context menu.";
@@ -75,3 +75,35 @@
 "Login item unavailable notice" = "macOS could not find the login item. Move Clipmio to Applications and try again.";
 "Login item failed notice" = "The change could not be completed. Check macOS Login Items and try again.";
 "Open Login Items Settings" = "Open Login Items Settings…";
+
+/* App recovery */
+"Show History" = "Show History";
+"Restart Clipmio" = "Restart Clipmio…";
+"Restart failed" = "Could not restart Clipmio";
+"Restart failed explanation" = "Clipmio is still running. Quit it and open it again from Applications.";
+"OK" = "OK";
+
+/* Compact history, favorites and custom shortcut */
+"Compact layout" = "Compact layout";
+"Compact layout explanation" = "Show more clips with smaller cards and image thumbnails.";
+"Global shortcut" = "Global shortcut";
+"Press shortcut…" = "Press shortcut…";
+"Record shortcut" = "Record shortcut";
+"Shortcut recording hint" = "Press a combination with ⌘ or ⌃. Esc cancels.";
+"Shortcut explanation" = "Click to record a shortcut. Changes take effect immediately.";
+"Shortcut conflict" = "This shortcut is unavailable. Your previous shortcut was kept.";
+"Shortcut invalid" = "Include ⌘ or ⌃ and a letter, number, arrow or function key.";
+"Restore default shortcut" = "Restore ⌘⇧V";
+"Custom shortcut unavailable notice" = "Shortcut unavailable. Change it in Settings or retry registration.";
+"All copies" = "All";
+"Favorites" = "Favorites";
+"Add favorite" = "Add to favorites";
+"Remove favorite" = "Remove from favorites";
+"Favorites limit" = "Up to 50 favorites. Remove a favorite to save another.";
+"No favorites yet" = "No favorites yet";
+"Favorites explanation" = "Click a star to keep a clip. Favorites survive history cleanup.";
+"Clear Recent History" = "Clear Recent History";
+"Clear recent history?" = "Clear recent history?";
+"Clear recent explanation" = "Recent clips will be deleted permanently. Favorites and the current system clipboard are kept.";
+
+"Swipe between tabs" = "Drag or swipe horizontally, or press ←/→ to switch tabs. When editing a search, arrows move the cursor; use ↑/↓ first to browse.";

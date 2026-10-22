@@ -5,6 +5,21 @@ import ClipmioCore
 
 final class MonitorTests: XCTestCase {
     @MainActor
+    func testDeclaredSourceBundleIsStoredForApplicationIcons() {
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        let store = HistoryStore()
+        let monitor = ClipboardMonitor(history: store, pasteboard: pasteboard)
+        let item = NSPasteboardItem()
+        item.setString("from Notes", forType: .string)
+        item.setString("com.apple.Notes", forType: .init("org.nspasteboard.source"))
+        pasteboard.clearContents()
+        XCTAssertTrue(pasteboard.writeObjects([item]))
+        monitor.poll()
+        XCTAssertEqual(store.entries.first?.sourceBundleID, "com.apple.Notes")
+    }
+
+    @MainActor
     func testOwnCopyDoesNotAddAnExtraHistoryEntry() {
         let pasteboard = NSPasteboard.withUniqueName()
         defer { pasteboard.releaseGlobally() }

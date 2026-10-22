@@ -22,6 +22,17 @@ final class AppSettings {
     static let shared = AppSettings(defaults: ProcessInfo.processInfo.arguments.contains("--demo") ? nil : .standard)
     private let defaults: UserDefaults?
     static let languageKey = "interfaceLanguage"
+    static let shortcutKey = "historyShortcut"
+    static let compactKey = "compactLayout"
+
+    var compactLayout: Bool {
+        didSet { defaults?.set(compactLayout, forKey: Self.compactKey) }
+    }
+    var shortcut: KeyboardShortcut {
+        didSet {
+            if let data = try? JSONEncoder().encode(shortcut) { defaults?.set(data, forKey: Self.shortcutKey) }
+        }
+    }
 
     var language: AppLanguage {
         didSet { defaults?.set(language.rawValue, forKey: Self.languageKey) }
@@ -29,6 +40,9 @@ final class AppSettings {
 
     init(defaults: UserDefaults? = .standard) {
         self.defaults = defaults
+        compactLayout = defaults?.object(forKey: Self.compactKey) as? Bool ?? true
+        let stored = defaults?.data(forKey: Self.shortcutKey).flatMap { try? JSONDecoder().decode(KeyboardShortcut.self, from: $0) }
+        shortcut = stored.flatMap { $0.isValid ? $0 : nil } ?? .default
         language = defaults?.string(forKey: Self.languageKey).flatMap(AppLanguage.init(rawValue:)) ?? .system
     }
 }

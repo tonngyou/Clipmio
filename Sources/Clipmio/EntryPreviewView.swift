@@ -11,6 +11,7 @@ struct EntryPreviewView: View {
     let onClose: () -> Void
     let onCopy: () -> Void
     let onPaste: () -> Void
+    var isActive: () -> Bool = { true }
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -82,7 +83,7 @@ struct EntryPreviewView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
         }
-        .background(PreviewKeyboardControl(actions: PreviewKeyboardActions(close: onClose, paste: onPaste)))
+        .background(PreviewKeyboardControl(actions: PreviewKeyboardActions(close: onClose, paste: onPaste, isEnabled: isActive)))
     }
 }
 

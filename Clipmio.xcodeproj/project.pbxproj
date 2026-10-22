@@ -302,6 +302,11 @@
 				<string>332967CCA87D3795BB266FD7</string>
 				<string>65913DDB9C006D645BDA173A</string>
 				<string>34BF332190691548B241B4AB</string>
+				<string>F6B40747B5F42D14CD0B6716</string>
+				<string>E008FC58486642C858C4D2BB</string>
+				<string>3A8B327A46C398EE89576870</string>
+				<string>49FC5355464579FC26442F3D</string>
+				<string>9D70EEAAB298FA08A8B8649E</string>
 			</array>
 			<key>name</key>
 			<string>Sources</string>
@@ -380,6 +385,11 @@
 				<string>E74869373F5BA5D54D55BDC1</string>
 				<string>216CF4F8DC71617E8669A500</string>
 				<string>229AF45C1387F3F815F83F23</string>
+				<string>871C702EB4D2A84D05BD5924</string>
+				<string>01DDD80ABFBF624E93D9138D</string>
+				<string>0CC5B0CE9F2AE3C9FEB213D7</string>
+				<string>08AD2BCDD726F70886DF6DAE</string>
+				<string>F8EE4DC488F3E737ED8877CA</string>
 			</array>
 			<key>runOnlyForDeploymentPostprocessing</key>
 			<integer>0</integer>
@@ -454,9 +464,9 @@
 				<key>GENERATE_INFOPLIST_FILE</key>
 				<string>NO</string>
 				<key>MARKETING_VERSION</key>
-				<string>0.1.1</string>
+				<string>0.2.4</string>
 				<key>CURRENT_PROJECT_VERSION</key>
-				<string>2</string>
+				<string>11</string>
 				<key>CODE_SIGN_IDENTITY</key>
 				<string>-</string>
 				<key>CODE_SIGN_STYLE</key>
@@ -520,9 +530,9 @@
 				<key>GENERATE_INFOPLIST_FILE</key>
 				<string>NO</string>
 				<key>MARKETING_VERSION</key>
-				<string>0.1.1</string>
+				<string>0.2.4</string>
 				<key>CURRENT_PROJECT_VERSION</key>
-				<string>2</string>
+				<string>11</string>
 				<key>CODE_SIGN_IDENTITY</key>
 				<string>-</string>
 				<key>CODE_SIGN_STYLE</key>
@@ -904,6 +914,96 @@
 			<string>PBXBuildFile</string>
 			<key>fileRef</key>
 			<string>34BF332190691548B241B4AB</string>
+		</dict>
+		<key>F6B40747B5F42D14CD0B6716</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.swift</string>
+			<key>path</key>
+			<string>Sources/Clipmio/KeyboardShortcut.swift</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>871C702EB4D2A84D05BD5924</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>F6B40747B5F42D14CD0B6716</string>
+		</dict>
+		<key>E008FC58486642C858C4D2BB</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.swift</string>
+			<key>path</key>
+			<string>Sources/Clipmio/ShortcutRecorder.swift</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>01DDD80ABFBF624E93D9138D</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>E008FC58486642C858C4D2BB</string>
+		</dict>
+		<key>3A8B327A46C398EE89576870</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.swift</string>
+			<key>path</key>
+			<string>Sources/Clipmio/SourceAppIcon.swift</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>0CC5B0CE9F2AE3C9FEB213D7</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>3A8B327A46C398EE89576870</string>
+		</dict>
+		<key>49FC5355464579FC26442F3D</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.swift</string>
+			<key>path</key>
+			<string>Sources/Clipmio/ContentEntrance.swift</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>08AD2BCDD726F70886DF6DAE</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>49FC5355464579FC26442F3D</string>
+		</dict>
+		<key>9D70EEAAB298FA08A8B8649E</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXFileReference</string>
+			<key>lastKnownFileType</key>
+			<string>sourcecode.swift</string>
+			<key>path</key>
+			<string>Sources/Clipmio/HistoryTabGesture.swift</string>
+			<key>sourceTree</key>
+			<string>&lt;group&gt;</string>
+		</dict>
+		<key>F8EE4DC488F3E737ED8877CA</key>
+		<dict>
+			<key>isa</key>
+			<string>PBXBuildFile</string>
+			<key>fileRef</key>
+			<string>9D70EEAAB298FA08A8B8649E</string>
 		</dict>
 	</dict>
 	<key>rootObject</key>

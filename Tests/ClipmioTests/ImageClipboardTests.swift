@@ -7,6 +7,31 @@ import ClipmioCore
 @testable import Clipmio
 
 final class ImageClipboardTests: XCTestCase {
+    @MainActor
+    func testRapidImageTextChangesNeverFinishWithAStaleImage() async throws {
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        let store = HistoryStore()
+        let monitor = ClipboardMonitor(history: store, pasteboard: pasteboard)
+        let data = try fixture()
+        var tasks: [Task<Void, Never>] = []
+        for index in 0..<100 {
+            pasteboard.clearContents()
+            pasteboard.setData(data, forType: .png)
+            if let task = monitor.poll() { tasks.append(task) }
+            if index.isMultiple(of: 3) { await Task.yield() }
+            pasteboard.clearContents()
+            pasteboard.setString("newest-\(index)", forType: .string)
+            monitor.poll()
+        }
+        for task in tasks { await task.value }
+        XCTAssertEqual(store.entries.first?.text, "newest-99")
+        XCTAssertNil(store.entries.first?.image)
+        XCTAssertEqual(store.entries.count, 50)
+        XCTAssertEqual(Set(store.entries.map(\.id)).count, store.entries.count)
+        monitor.stop()
+    }
+
     private func fixture(type: UTType = .png) throws -> Data {
         let context = try XCTUnwrap(CGContext(data: nil, width: 12, height: 8, bitsPerComponent: 8,
                                              bytesPerRow: 48, space: CGColorSpaceCreateDeviceRGB(),
@@ -30,12 +55,14 @@ final class ImageClipboardTests: XCTestCase {
         let item = NSPasteboardItem()
         item.setData(data, forType: .png)
         item.setString("https://example.com/image.png", forType: .string)
+        item.setString("com.apple.Preview", forType: .init("org.nspasteboard.source"))
         pasteboard.clearContents()
         XCTAssertTrue(pasteboard.writeObjects([item]))
         await monitor.poll()?.value
         XCTAssertEqual(store.entries.count, 1)
         let entry = try XCTUnwrap(store.entries.first)
         XCTAssertNotNil(entry.image)
+        XCTAssertEqual(entry.sourceBundleID, "com.apple.Preview")
         XCTAssertEqual(store.imageData(for: entry), data)
         XCTAssertTrue(monitor.copy(.image(data)))
         monitor.poll()

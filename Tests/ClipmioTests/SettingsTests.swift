@@ -4,6 +4,58 @@ import XCTest
 
 final class SettingsTests: XCTestCase {
     @MainActor
+    func testShortcutRecordingStopsWhenItsWindowLosesFocus() {
+        _ = NSApplication.shared
+        var changes: [Bool] = []
+        let recorder = ShortcutRecorder(label: "⌘⇧V", onRecordingChange: { changes.append($0) },
+                                        onCapture: { _ in XCTFail("Unexpected capture") }, onInvalid: {})
+        let button = ShortcutRecorder.RecordingButton()
+        button.parent = recorder
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 200, height: 50),
+                              styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = button
+        NotificationCenter.default.addObserver(button, selector: #selector(ShortcutRecorder.RecordingButton.windowResignedKey(_:)),
+                                               name: NSWindow.didResignKeyNotification, object: window)
+        defer { NotificationCenter.default.removeObserver(button) }
+        button.beginRecording()
+        XCTAssertTrue(button.isRecording)
+        NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
+        XCTAssertFalse(button.isRecording)
+        XCTAssertEqual(changes, [true, false])
+    }
+
+    @MainActor
+    func testShortcutAndLayoutPersistAndInvalidShortcutFallsBack() throws {
+        let name = "Clipmio.SettingsTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = AppSettings(defaults: defaults)
+        XCTAssertTrue(settings.compactLayout)
+        XCTAssertEqual(settings.shortcut, .default)
+        settings.compactLayout = false
+        let custom = KeyboardShortcut(keyCode: 8, modifiers: KeyboardShortcut.default.modifiers)
+        settings.shortcut = custom
+        XCTAssertEqual(AppSettings(defaults: defaults).shortcut, custom)
+        XCTAssertFalse(AppSettings(defaults: defaults).compactLayout)
+        defaults.set(try JSONEncoder().encode(KeyboardShortcut(keyCode: 9, modifiers: 0)), forKey: AppSettings.shortcutKey)
+        XCTAssertEqual(AppSettings(defaults: defaults).shortcut, .default)
+        defaults.set(Data("invalid".utf8), forKey: AppSettings.shortcutKey)
+        XCTAssertEqual(AppSettings(defaults: defaults).shortcut, .default)
+    }
+
+    func testShortcutRejectsTypingOnlyAndModifierKeysAndNormalizesInputMethodFlags() throws {
+        XCTAssertFalse(KeyboardShortcut(keyCode: 9, modifiers: 0).isValid)
+        XCTAssertFalse(KeyboardShortcut(keyCode: 56, modifiers: KeyboardShortcut.default.modifiers).isValid)
+        XCTAssertEqual(KeyboardShortcut.default.label, "⌘⇧V")
+        let event = try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero,
+            modifierFlags: [.control, .option, .capsLock, .numericPad], timestamp: 0, windowNumber: 0,
+            context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: 125))
+        let value = KeyboardShortcut(event: event)
+        XCTAssertTrue(value.isValid)
+        XCTAssertEqual(value.label, "⌃⌥↓")
+    }
+
+    @MainActor
     func testLanguagePersistsAcrossSettingsInstancesAndInvalidValueFallsBack() throws {
         let name = "Clipmio.SettingsTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: name))

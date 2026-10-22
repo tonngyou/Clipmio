@@ -4,6 +4,41 @@ import XCTest
 
 final class HistoryTests: XCTestCase {
     @MainActor
+    func testFullCapacityLongTextHistorySurvivesPersistenceAndFiltering() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("history.json")
+        let store = HistoryStore(fileURL: file)
+        let payload = String(repeating: "中é🙂\n", count: 20000)
+        for index in 0..<55 {
+            store.capture("record-\(index)\n" + payload + "\nunique-tail-\(index)", sourceName: "Regression")
+        }
+        XCTAssertEqual(store.entries.count, 50)
+        XCTAssertEqual(Set(store.entries.map(\.id)).count, 50)
+        XCTAssertEqual(store.entries.first?.text, "record-54\n" + payload + "\nunique-tail-54")
+        XCTAssertTrue(store.entries.allSatisfy { $0.preview.count <= 400 })
+        let loaded = HistoryStore(fileURL: file)
+        XCTAssertNil(loaded.storageIssue)
+        XCTAssertEqual(loaded.entries, store.entries)
+        XCTAssertEqual(loaded.matching("unique-tail-54").count, 1)
+        XCTAssertEqual(loaded.matching("no-such-record").count, 0)
+        XCTAssertEqual(loaded.matching("REGRESSION").count, 50)
+    }
+
+    @MainActor
+    func testLongUnicodePreviewIsBoundedWithoutTruncatingStoredOrSearchableText() {
+        let fullText = String(repeating: "👨‍👩‍👧‍👦中文\n", count: 5000) + "unique-tail"
+        let store = HistoryStore()
+        store.capture(fullText)
+        let entry = store.entries[0]
+        XCTAssertLessThanOrEqual(entry.preview.count, 400)
+        XCTAssertFalse(entry.preview.contains("\n"))
+        XCTAssertTrue(entry.preview.hasPrefix("👨‍👩‍👧‍👦中文"))
+        XCTAssertEqual(entry.text, fullText)
+        XCTAssertEqual(store.matching("unique-tail").first?.text, fullText)
+    }
+
+    @MainActor
     func testRecopyMovesExactTextToFrontWithoutChangingItsIdentity() {
         let store = HistoryStore()
         store.capture("A", sourceName: "Notes", at: Date(timeIntervalSince1970: 1))

@@ -5,6 +5,50 @@ import XCTest
 
 final class GlobalHotKeyTests: XCTestCase {
     @MainActor
+    func testChangingShortcutReleasesOldCombinationAndConflictKeepsWorkingShortcut() throws {
+        let hotKey = makeHotKey()
+        let oldCombination = makeHotKey()
+        let alternative = KeyboardShortcut(keyCode: UInt32(kVK_F18), modifiers: UInt32(cmdKey | controlKey | optionKey | shiftKey))
+        let owner = GlobalHotKey(shortcut: alternative)
+        defer { hotKey.stop(); oldCombination.stop(); owner.stop() }
+        try register(hotKey)
+        try register(owner)
+        XCTAssertFalse(hotKey.setShortcut(alternative))
+        XCTAssertTrue(hotKey.isRegistered)
+        XCTAssertEqual(hotKey.shortcut, oldCombination.shortcut)
+        XCTAssertNil(hotKey.registrationError)
+        XCTAssertFalse(oldCombination.start())
+        owner.stop()
+        XCTAssertTrue(hotKey.setShortcut(alternative))
+        XCTAssertEqual(hotKey.shortcut, alternative)
+        XCTAssertTrue(oldCombination.start())
+        XCTAssertTrue(hotKey.start())
+        var calls = 0
+        hotKey.onTrigger = { calls += 1 }
+        try send(identifier: hotKey.eventID, kind: UInt32(kEventHotKeyPressed))
+        XCTAssertEqual(calls, 1)
+    }
+
+    @MainActor
+    func testRecordingCancellationAndFailedReplacementCanRestoreOldRegistration() throws {
+        let hotKey = makeHotKey()
+        let original = hotKey.shortcut
+        let occupied = KeyboardShortcut(keyCode: UInt32(kVK_F18), modifiers: UInt32(cmdKey | controlKey | optionKey | shiftKey))
+        let owner = GlobalHotKey(shortcut: occupied)
+        defer { hotKey.stop(); owner.stop() }
+        try register(hotKey)
+        try register(owner)
+        hotKey.stop()
+        XCTAssertFalse(hotKey.setShortcut(occupied))
+        XCTAssertEqual(hotKey.shortcut, original)
+        XCTAssertTrue(hotKey.start())
+        XCTAssertTrue(hotKey.isRegistered)
+        XCTAssertFalse(hotKey.setShortcut(KeyboardShortcut(keyCode: 9, modifiers: UInt32(shiftKey))))
+        XCTAssertTrue(hotKey.isRegistered)
+        XCTAssertEqual(hotKey.shortcut, original)
+    }
+
+    @MainActor
     private func makeHotKey() -> GlobalHotKey {
         // Avoid taking the user's actual shortcut during automated tests.
         GlobalHotKey(keyCode: UInt32(kVK_F19),

@@ -25,11 +25,12 @@ final class LocalKeyMonitor {
 struct PreviewKeyboardActions {
     let close: () -> Void
     let paste: () -> Void
+    var isEnabled: () -> Bool = { true }
 
     @MainActor
     func handle(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, isRepeat: Bool,
                 composing: Bool) -> Bool {
-        guard !composing, modifiers.intersection([.command, .control, .option, .shift]).isEmpty else { return false }
+        guard isEnabled(), !composing, modifiers.intersection([.command, .control, .option, .shift]).isEmpty else { return false }
         switch Int(keyCode) {
         case kVK_Space, kVK_Escape:
             if !isRepeat { close() }

@@ -10,7 +10,9 @@ struct HistorySearchField: NSViewRepresentable {
     let onSubmit: () -> Void
     let onEscape: () -> Void
     var onPreview: (() -> Void)? = nil
+    var onSwitchTab: ((Int) -> Void)? = nil
     var isNavigatingHistory = false
+    var isActive: () -> Bool = { true }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -40,8 +42,10 @@ struct HistorySearchField: NSViewRepresentable {
 
     func updateNSView(_ field: NSTextField, context: Context) {
         context.coordinator.parent = self
-        field.placeholderString = L10n.text("Search your copies…")
-        field.setAccessibilityLabel(L10n.text("Search history"))
+        let placeholder = L10n.text("Search your copies…")
+        if field.placeholderString != placeholder { field.placeholderString = placeholder }
+        let label = L10n.text("Search history")
+        if field.accessibilityLabel() != label { field.setAccessibilityLabel(label) }
         // Replacing an active marked string would break Chinese/Japanese composition.
         let composing = (field.currentEditor() as? NSTextView)?.hasMarkedText() ?? false
         if !composing && field.stringValue != text { field.stringValue = text }
@@ -57,7 +61,7 @@ struct HistorySearchField: NSViewRepresentable {
         @discardableResult
         func handleSpace(searchText: String, composing: Bool, modifiers: NSEvent.ModifierFlags,
                          isRepeat: Bool) -> Bool {
-            guard !composing, let preview = parent.onPreview,
+            guard parent.isActive(), !composing, let preview = parent.onPreview,
                   modifiers.intersection([.command, .control, .option, .shift]).isEmpty,
                   searchText.isEmpty || parent.isNavigatingHistory else { return false }
             if !isRepeat { preview() }
@@ -71,14 +75,23 @@ struct HistorySearchField: NSViewRepresentable {
 
         func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
             handle(command: commandSelector, composing: textView.hasMarkedText(),
-                   modifiers: NSApp.currentEvent?.modifierFlags ?? [])
+                   modifiers: NSApp.currentEvent?.modifierFlags ?? [], searchText: textView.string)
         }
 
         @discardableResult
-        func handle(command: Selector, composing: Bool, modifiers: NSEvent.ModifierFlags) -> Bool {
-            guard !composing,
+        func handle(command: Selector, composing: Bool, modifiers: NSEvent.ModifierFlags,
+                    searchText: String? = nil) -> Bool {
+            guard parent.isActive(), !composing,
                   modifiers.intersection([.command, .control, .option, .shift]).isEmpty else { return false }
             switch command {
+            case #selector(NSResponder.moveLeft(_:)), #selector(NSResponder.moveBackward(_:)):
+                guard let switchTab = parent.onSwitchTab,
+                      (searchText ?? parent.text).isEmpty || parent.isNavigatingHistory else { return false }
+                switchTab(-1)
+            case #selector(NSResponder.moveRight(_:)), #selector(NSResponder.moveForward(_:)):
+                guard let switchTab = parent.onSwitchTab,
+                      (searchText ?? parent.text).isEmpty || parent.isNavigatingHistory else { return false }
+                switchTab(1)
             case #selector(NSResponder.moveUp(_:)):
                 parent.onMove(-1)
             case #selector(NSResponder.moveDown(_:)):

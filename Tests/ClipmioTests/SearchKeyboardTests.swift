@@ -5,6 +5,61 @@ import XCTest
 
 final class SearchKeyboardTests: XCTestCase {
     @MainActor
+    func testEmptySearchRoutesLeftRightAndTheirTextSystemAliasesToTabs() {
+        var tabs: [Int] = []
+        let coordinator = HistorySearchField(text: .constant(""), onMove: { _ in XCTFail("Unexpected row move") },
+            onSubmit: { XCTFail("Unexpected paste") }, onEscape: {}, onSwitchTab: { tabs.append($0) }).makeCoordinator()
+        for command in [#selector(NSResponder.moveLeft(_:)), #selector(NSResponder.moveRight(_:)),
+                        #selector(NSResponder.moveBackward(_:)), #selector(NSResponder.moveForward(_:))] {
+            XCTAssertTrue(coordinator.handle(command: command, composing: false, modifiers: []))
+        }
+        XCTAssertEqual(tabs, [-1, 1, -1, 1])
+    }
+
+    @MainActor
+    func testSearchEditingKeepsCursorArrowsUntilHistoryNavigationBegins() {
+        var tabs: [Int] = []
+        let coordinator = HistorySearchField(text: .constant("Notes"), onMove: { _ in }, onSubmit: {},
+            onEscape: {}, onSwitchTab: { tabs.append($0) }).makeCoordinator()
+        XCTAssertFalse(coordinator.handle(command: #selector(NSResponder.moveLeft(_:)), composing: false, modifiers: []))
+        XCTAssertFalse(coordinator.handle(command: #selector(NSResponder.moveRight(_:)), composing: false, modifiers: []))
+        coordinator.parent.isNavigatingHistory = true
+        XCTAssertTrue(coordinator.handle(command: #selector(NSResponder.moveRight(_:)), composing: false, modifiers: []))
+        XCTAssertTrue(coordinator.handle(command: #selector(NSResponder.moveLeft(_:)), composing: false, modifiers: []))
+        XCTAssertEqual(tabs, [1, -1])
+    }
+
+    @MainActor
+    func testTabArrowsRespectIMEEditingModifiersAndInactivePages() {
+        var tabs: [Int] = []
+        let coordinator = HistorySearchField(text: .constant(""), onMove: { _ in }, onSubmit: {},
+            onEscape: {}, onSwitchTab: { tabs.append($0) }).makeCoordinator()
+        for command in [#selector(NSResponder.moveLeft(_:)), #selector(NSResponder.moveRight(_:))] {
+            XCTAssertFalse(coordinator.handle(command: command, composing: true, modifiers: []))
+            for modifier: NSEvent.ModifierFlags in [.command, .option, .control, .shift] {
+                XCTAssertFalse(coordinator.handle(command: command, composing: false, modifiers: modifier))
+            }
+        }
+        coordinator.parent.isActive = { false }
+        XCTAssertFalse(coordinator.handle(command: #selector(NSResponder.moveRight(_:)), composing: false, modifiers: []))
+        XCTAssertTrue(tabs.isEmpty)
+    }
+
+    @MainActor
+    func testLiveEditorTextTakesPrecedenceOverAnOutdatedSearchBinding() {
+        var tabs: [Int] = []
+        var boundText = ""
+        let coordinator = HistorySearchField(text: Binding(get: { boundText }, set: { boundText = $0 }), onMove: { _ in }, onSubmit: {},
+            onEscape: {}, onSwitchTab: { tabs.append($0) }).makeCoordinator()
+        XCTAssertFalse(coordinator.handle(command: #selector(NSResponder.moveRight(_:)), composing: false,
+                                          modifiers: [], searchText: "newly typed"))
+        boundText = "stale binding"
+        XCTAssertTrue(coordinator.handle(command: #selector(NSResponder.moveRight(_:)), composing: false,
+                                         modifiers: [], searchText: ""))
+        XCTAssertEqual(tabs, [1])
+    }
+
+    @MainActor
     func testArrowKeysAndReturnInvokeHistoryActions() {
         var moves: [Int] = []
         var submitted = 0

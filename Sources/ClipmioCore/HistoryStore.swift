@@ -12,35 +12,40 @@ public final class HistoryStore {
     public private(set) var entries: [ClipEntry] = []
     public private(set) var storageIssue: StorageIssue?
     public let limit: Int
+    public let favoriteLimit: Int
+    public var canAddFavorite: Bool { entries.filter(\.isFavorite).count < favoriteLimit }
     @ObservationIgnored private let fileURL: URL?
     @ObservationIgnored private var savingBlocked = false
     @ObservationIgnored private var imageCache: [String: Data] = [:]
 
-    public init(fileURL: URL? = nil, limit: Int = 50) {
+    public init(fileURL: URL? = nil, limit: Int = 50, favoriteLimit: Int = 50) {
         self.fileURL = fileURL
         self.limit = max(1, limit)
+        self.favoriteLimit = max(1, favoriteLimit)
         load()
     }
 
-    public func capture(_ text: String, sourceName: String? = nil, at date: Date = .now) {
+    public func capture(_ text: String, sourceName: String? = nil, sourceBundleID: String? = nil, at date: Date = .now) {
         guard CapturePolicy.accepts(text: text) else { return }
         let existing = entries.first { $0.image == nil && $0.text == text }
         entries.removeAll { $0.image == nil && $0.text == text }
         entries.insert(ClipEntry(id: existing?.id ?? UUID(), text: text,
-                                 copiedAt: date, sourceName: sourceName), at: 0)
-        entries = Array(entries.prefix(limit))
+                                 copiedAt: date, sourceName: sourceName, sourceBundleID: sourceBundleID,
+                                 isFavorite: existing?.isFavorite ?? false), at: 0)
+        trimToCapacity()
         save()
     }
 
     @discardableResult
-    public func captureImage(_ pngData: Data, sourceName: String? = nil, at date: Date = .now) -> Bool {
+    public func captureImage(_ pngData: Data, sourceName: String? = nil, sourceBundleID: String? = nil, at date: Date = .now) -> Bool {
         guard let image = ImageAttachment(pngData: pngData) else { return false }
         let existing = entries.first { $0.image?.fingerprint == image.fingerprint }
         entries.removeAll { $0.image?.fingerprint == image.fingerprint }
         imageCache[image.fingerprint] = pngData
         entries.insert(ClipEntry(id: existing?.id ?? UUID(), image: image,
-                                 copiedAt: date, sourceName: sourceName), at: 0)
-        entries = Array(entries.prefix(limit))
+                                 copiedAt: date, sourceName: sourceName, sourceBundleID: sourceBundleID,
+                                 isFavorite: existing?.isFavorite ?? false), at: 0)
+        trimToCapacity()
         save()
         return true
     }
@@ -53,14 +58,25 @@ public final class HistoryStore {
         return data
     }
 
-    public func matching(_ query: String) -> [ClipEntry] {
+    public func matching(_ query: String, favoritesOnly: Bool = false) -> [ClipEntry] {
+        let candidates = favoritesOnly ? entries.filter(\.isFavorite) : entries
         let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return entries }
-        return entries.filter {
+        guard !query.isEmpty else { return candidates }
+        return candidates.filter {
             $0.text.localizedStandardContains(query)
                 || ($0.sourceName?.localizedStandardContains(query) ?? false)
                 || ($0.image != nil && "Image 图片 圖片".localizedStandardContains(query))
         }
+    }
+
+    @discardableResult
+    public func setFavorite(_ favorite: Bool, id: UUID) -> Bool {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return false }
+        guard !favorite || entries[index].isFavorite || canAddFavorite else { return false }
+        entries[index].isFavorite = favorite
+        trimToCapacity()
+        save()
+        return true
     }
 
     public func remove(id: UUID) {
@@ -69,8 +85,8 @@ public final class HistoryStore {
     }
 
     /// Explicitly clearing history also resets an unreadable history file.
-    public func clear() {
-        entries.removeAll()
+    public func clear(keepingFavorites: Bool = false) {
+        entries.removeAll { !keepingFavorites || !$0.isFavorite }
         savingBlocked = false
         save()
     }
@@ -80,14 +96,14 @@ public final class HistoryStore {
         do {
             let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
             // JSON escaping can expand a text byte to six bytes (e.g. control characters).
-            guard ((attributes[.size] as? NSNumber)?.intValue ?? 0) <= 96 * 1024 * 1024 else {
+            guard ((attributes[.size] as? NSNumber)?.intValue ?? 0) <= 192 * 1024 * 1024 else {
                 throw CocoaError(.fileReadTooLarge)
             }
             let decoded = try JSONDecoder().decode([ClipEntry].self, from: Data(contentsOf: fileURL))
             var seenText = Set<String>()
             var seenImages = Set<String>()
             var seenIDs = Set<UUID>()
-            entries = Array(decoded.filter {
+            entries = decoded.filter {
                 let valid: Bool
                 if let image = $0.image {
                     valid = image.hasValidMetadata && imageFileExists(image)
@@ -96,11 +112,26 @@ public final class HistoryStore {
                     valid = CapturePolicy.accepts(text: $0.text) && seenText.insert($0.text).inserted
                 }
                 return valid && seenIDs.insert($0.id).inserted
-            }.prefix(limit))
+            }
+            trimToCapacity()
         } catch {
             // Keep the original file intact instead of overwriting unreadable data.
             savingBlocked = true
             storageIssue = .unreadableHistory
+        }
+    }
+
+    // Favorites have their own bounded allocation and never compete with recent clips.
+    private func trimToCapacity() {
+        var favorites = 0
+        var recent = 0
+        entries = entries.filter { entry in
+            if entry.isFavorite {
+                favorites += 1
+                return favorites <= favoriteLimit
+            }
+            recent += 1
+            return recent <= limit
         }
     }
 

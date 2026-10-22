@@ -5,6 +5,9 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var settings: AppSettings
     let loginItem: LoginItemManager
+    let hotKey: GlobalHotKey
+    @State private var recordingShortcut = false
+    @State private var shortcutError: String?
     let onClose: () -> Void
 
     var body: some View {
@@ -20,6 +23,49 @@ struct SettingsView: View {
             .padding(20)
             Divider()
             Form {
+                Section {
+                    Toggle(L10n.text("Compact layout"), isOn: $settings.compactLayout)
+                    Text(L10n.text("Compact layout explanation"))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Section {
+                    HStack {
+                        Text(L10n.text("Global shortcut"))
+                        Spacer()
+                        ShortcutRecorder(label: hotKey.shortcutLabel, onRecordingChange: { active in
+                            recordingShortcut = active
+                            if active {
+                                shortcutError = nil
+                                hotKey.stop()
+                            } else {
+                                hotKey.start()
+                            }
+                        }, onCapture: { shortcut in
+                            if hotKey.setShortcut(shortcut) {
+                                settings.shortcut = shortcut
+                                shortcutError = nil
+                            } else {
+                                shortcutError = "Shortcut conflict"
+                            }
+                        }, onInvalid: { shortcutError = "Shortcut invalid" })
+                        .frame(width: 140, height: 25)
+                    }
+                    Text(L10n.text(recordingShortcut ? "Shortcut recording hint" : "Shortcut explanation"))
+                        .font(.caption).foregroundStyle(.secondary)
+                    if let shortcutError {
+                        Text(L10n.text(shortcutError)).font(.caption).foregroundStyle(.orange)
+                    }
+                    Button(L10n.text("Restore default shortcut")) {
+                        if hotKey.setShortcut(.default) {
+                            settings.shortcut = .default
+                            shortcutError = nil
+                        } else { shortcutError = "Shortcut conflict" }
+                    }
+                    .disabled(recordingShortcut || hotKey.shortcut == .default)
+                    if !hotKey.isRegistered && !recordingShortcut {
+                        Button(L10n.text("Retry Shortcut")) { hotKey.start() }
+                    }
+                }
                 Section {
                     Picker(L10n.text("Language"), selection: $settings.language) {
                         Text(L10n.text("Follow System")).tag(AppLanguage.system)
@@ -62,6 +108,7 @@ struct SettingsView: View {
             Spacer(minLength: 0)
         }
         .onAppear { loginItem.refresh() }
+        .onDisappear { if recordingShortcut { hotKey.start() } }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             loginItem.refresh()
         }

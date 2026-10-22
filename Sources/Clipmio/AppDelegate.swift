@@ -1,5 +1,6 @@
 // Copyright (c) 2026 tonngyou. MIT License.
 import AppKit
+import Carbon
 import SwiftUI
 #if SWIFT_PACKAGE
 import ClipmioCore
@@ -14,12 +15,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pasteService: PasteService!
     private var previousApplication: NSRunningApplication?
     private var lastExternalApplication: NSRunningApplication?
-    private let hotKey = GlobalHotKey()
+    private let hotKey = GlobalHotKey(shortcut: AppSettings.shared.shortcut)
     private var isDemo = false
     private var loginItem: LoginItemManager!
+    private var restarting = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        NSApp.setActivationPolicy(.regular)
+        let openHistoryAtLaunch = LaunchPresentation.shouldOpenHistory(
+            event: NSAppleEventManager.shared().currentAppleEvent,
+            arguments: ProcessInfo.processInfo.arguments)
         let front = NSWorkspace.shared.frontmostApplication
         if front?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
             lastExternalApplication = front
@@ -46,20 +51,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let button = item.button {
             button.image = ClipmioArtwork.menuBarImage()
                 ?? NSImage(systemSymbolName: "clipboard", accessibilityDescription: "Clipmio")
-            button.toolTip = "Clipmio · 贴觅 — \(GlobalHotKey.shortcutLabel)"
+            button.toolTip = "Clipmio · 贴觅"
             button.target = self
-            button.action = #selector(togglePopover)
+            button.action = #selector(statusItemClicked)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         statusItem = item
         popover.behavior = .transient
-        popover.animates = true
+        popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         popover.contentSize = ClipmioTheme.panelSize
         hotKey.onTrigger = { [weak self] in self?.togglePopover() }
         hotKey.start()
-        if demo {
+        if openHistoryAtLaunch {
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .milliseconds(500))
-                self?.togglePopover()
+                // A Dock reopen may already have shown it during startup.
+                self?.showHistory()
             }
         }
     }
@@ -76,7 +83,91 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        let history = NSMenuItem(title: L10n.text("Show History"), action: #selector(showHistory), keyEquivalent: "")
+        history.target = self
+        menu.addItem(history)
+        let restart = NSMenuItem(title: L10n.text("Restart Clipmio"), action: #selector(restartApp), keyEquivalent: "")
+        restart.target = self
+        menu.addItem(restart)
+        // Regular applications receive the system's standard Quit command below.
+        return menu
+    }
+
+    @objc private func showHistory() {
+        if popover.isShown {
+            popover.contentViewController?.view.window?.makeKey()
+            NSApp.activate()
+        } else {
+            togglePopover()
+        }
+    }
+
+    @objc private func statusItemClicked() {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+            showStatusMenu()
+        } else {
+            togglePopover()
+        }
+    }
+
+    private func showStatusMenu() {
+        guard let button = statusItem?.button else { return }
+        pasteService.cancel()
+        popover.performClose(nil)
+        let menu = NSMenu()
+        func add(_ title: String, action: Selector, key: String = "") {
+            let item = NSMenuItem(title: L10n.text(title), action: action, keyEquivalent: key)
+            item.target = self
+            menu.addItem(item)
+        }
+        add("Show History", action: #selector(togglePopover))
+        add(monitor.isPaused ? "Resume Monitoring" : "Pause Monitoring", action: #selector(toggleMonitoring))
+        menu.addItem(.separator())
+        add("Restart Clipmio", action: #selector(restartApp))
+        add("Quit Clipmio", action: #selector(quitApp), key: "q")
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
+    }
+
+    @objc private func toggleMonitoring() { monitor.togglePause() }
+    @objc private func quitApp() { NSApp.terminate(nil) }
+
+    @objc private func restartApp() {
+        guard !restarting else { return }
+        restarting = true
+        pasteService.cancel()
+        popover.performClose(nil)
+        hotKey.stop()
+        monitor.stop()
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        configuration.activates = false
+        configuration.arguments = ProcessInfo.processInfo.arguments.filter { ["--demo", "--dark"].contains($0) }
+        configuration.arguments.append("--background")
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { [weak self] app, error in
+            Task { @MainActor in
+                guard let self else { return }
+                if app != nil && error == nil {
+                    NSApp.terminate(nil)
+                } else {
+                    self.restarting = false
+                    if !self.isDemo { self.monitor.start() }
+                    self.hotKey.start()
+                    let alert = NSAlert()
+                    alert.messageText = L10n.text("Restart failed")
+                    alert.informativeText = L10n.text("Restart failed explanation")
+                    alert.addButton(withTitle: L10n.text("OK"))
+                    NSApp.activate()
+                    alert.runModal()
+                }
+            }
+        }
+    }
+
     @objc private func togglePopover() {
+        guard !restarting else { return }
         if popover.isShown {
             dismissPopover()
             return
@@ -97,15 +188,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                           onPaste: { [weak self] entry in self?.paste(entry) },
                           onCopy: { [weak self] entry in self?.copy(entry) },
                           onDismiss: { [weak self] in self?.dismissPopover() },
+                          onRestart: { [weak self] in self?.restartApp() },
                           onPreviewChange: { [weak self] visible in
-                              self?.popover.contentSize = visible ? ClipmioTheme.previewPanelSize : ClipmioTheme.panelSize
+                              self?.resizeHistoryPanel(preview: visible)
                           })
         )
         presentPopover()
     }
 
+    private func resizeHistoryPanel(preview: Bool) {
+        // Resize once, without a second AppKit snapshot animation over SwiftUI content.
+        popover.animates = false
+        popover.contentSize = preview ? ClipmioTheme.previewPanelSize : ClipmioTheme.panelSize
+        popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
     private func presentPopover() {
         guard !popover.isShown, let button = statusItem?.button else { return }
+        popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         popover.appearance = NSApp.effectiveAppearance
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
@@ -113,6 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func copy(_ entry: ClipEntry) {
+        guard !isDemo else { return }
         pasteService.cancel()
         pasteService.clearFailure()
         guard let content = content(for: entry), monitor.copy(content) else {
@@ -124,6 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func paste(_ entry: ClipEntry) {
+        guard !isDemo else { return }
         guard let content = content(for: entry) else {
             pasteService.reportUnavailableContent()
             return
@@ -165,8 +267,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("Clipmio · 贴觅\n复制过的，随时找回。", "Clipmio")
         ]
         for (index, sample) in samples.enumerated() {
-            history.capture(sample.0, sourceName: sample.1,
+            history.capture(sample.0, sourceName: sample.1, sourceBundleID: ["Notes": "com.apple.Notes", "Terminal": "com.apple.Terminal", "Safari": "com.apple.Safari", "Preview": "com.apple.Preview"][sample.1],
                             at: Date.now.addingTimeInterval(Double(index - samples.count) * 180))
         }
+        if ProcessInfo.processInfo.arguments.contains("--stress") {
+            for index in 0..<50 {
+                history.capture("\(index) · " + String(repeating: "Long clipboard text · 長文字佈局測試 👨‍👩‍👧‍👦\n", count: 200),
+                                sourceName: "Clipmio Demo")
+            }
+        }
+    }
+}
+
+@MainActor
+enum LaunchPresentation {
+    static func shouldOpenHistory(event: NSAppleEventDescriptor?, arguments: [String]) -> Bool {
+        if arguments.contains("--background") { return false }
+        if event?.eventID == AEEventID(kAEOpenApplication),
+           let reason = event?.paramDescriptor(forKeyword: AEKeyword(keyAEPropData))?.enumCodeValue,
+           reason == OSType(keyAELaunchedAsLogInItem) || reason == OSType(keyAELaunchedAsServiceItem) {
+            return false
+        }
+        return true
     }
 }

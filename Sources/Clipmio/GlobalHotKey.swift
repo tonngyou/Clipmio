@@ -5,7 +5,6 @@ import Observation
 /// An application-event hotkey needs no Accessibility or Input Monitoring grant.
 @Observable @MainActor
 final class GlobalHotKey {
-    static let shortcutLabel = "⌘⇧V"
     private static var nextID: UInt32 = 0
 
     var onTrigger: (() -> Void)?
@@ -13,22 +12,49 @@ final class GlobalHotKey {
     private(set) var registrationError: OSStatus?
 
     @ObservationIgnored let eventID: EventHotKeyID
-    @ObservationIgnored private let keyCode: UInt32
-    @ObservationIgnored private let modifiers: UInt32
+    private(set) var shortcut: KeyboardShortcut
+    var shortcutLabel: String { shortcut.label }
     @ObservationIgnored private var hotKeyRef: EventHotKeyRef?
     @ObservationIgnored private var handlerRef: EventHandlerRef?
 
-    init(keyCode: UInt32 = UInt32(kVK_ANSI_V), modifiers: UInt32 = UInt32(cmdKey | shiftKey)) {
-        self.keyCode = keyCode
-        self.modifiers = modifiers
+    init(shortcut: KeyboardShortcut = .default) {
+        self.shortcut = shortcut.isValid ? shortcut : .default
         Self.nextID &+= 1
         eventID = EventHotKeyID(signature: 0x434D494F, id: Self.nextID) // CMIO
     }
 
+    convenience init(keyCode: UInt32, modifiers: UInt32) {
+        self.init(shortcut: KeyboardShortcut(keyCode: keyCode, modifiers: modifiers))
+    }
+
     @discardableResult
     func start() -> Bool {
-        guard !isRegistered else { return true }
-        stop()
+        if isRegistered { return true }
+        return setShortcut(shortcut)
+    }
+
+    /// Try the replacement before releasing a working registration.
+    @discardableResult
+    func setShortcut(_ value: KeyboardShortcut) -> Bool {
+        guard value.isValid else { return false }
+        if isRegistered && value == shortcut { return true }
+        if handlerRef == nil, !installHandler() { return false }
+        var replacement: EventHotKeyRef?
+        let status = RegisterEventHotKey(value.keyCode, value.modifiers, eventID,
+                                        GetApplicationEventTarget(), OptionBits(kEventHotKeyExclusive), &replacement)
+        guard status == noErr else {
+            if !isRegistered { _ = fail(status) }
+            return false
+        }
+        if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
+        hotKeyRef = replacement
+        shortcut = value
+        registrationError = nil
+        isRegistered = true
+        return true
+    }
+
+    private func installHandler() -> Bool {
         var event = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
                                   eventKind: UInt32(kEventHotKeyPressed))
         let context = Unmanaged.passUnretained(self).toOpaque()
@@ -51,11 +77,6 @@ final class GlobalHotKey {
         }, 1, &event, context, &handlerRef)
         guard handlerStatus == noErr else { return fail(handlerStatus) }
 
-        let status = RegisterEventHotKey(keyCode, modifiers, eventID,
-                                         GetApplicationEventTarget(), OptionBits(kEventHotKeyExclusive), &hotKeyRef)
-        guard status == noErr else { return fail(status) }
-        registrationError = nil
-        isRegistered = true
         return true
     }
 

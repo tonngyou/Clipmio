@@ -4,7 +4,7 @@ import SwiftUI
 
 enum ClipmioTheme {
     static let purple = Color(red: 0.34, green: 0.31, blue: 0.83)
-    static let panelSize = CGSize(width: 400, height: 574)
+    static let panelSize = CGSize(width: 400, height: 520)
     static let previewPanelSize = CGSize(width: 640, height: 600)
 
     static func accent(for scheme: ColorScheme) -> Color {

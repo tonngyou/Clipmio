@@ -6,6 +6,60 @@ import XCTest
 @testable import ClipmioCore
 
 final class ImageHistoryTests: XCTestCase {
+    @MainActor
+    func testFavoriteImageAttachmentSurvivesEvictionAndCleanupUntilExplicitDeletion() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("history.json")
+        let store = HistoryStore(fileURL: file, limit: 1)
+        let data = try png()
+        XCTAssertTrue(store.captureImage(data, sourceName: "Preview", sourceBundleID: "com.apple.Preview"))
+        let id = try XCTUnwrap(store.entries.first?.id)
+        XCTAssertTrue(store.setFavorite(true, id: id))
+        for i in 0..<10 { store.capture("text \(i)") }
+        XCTAssertTrue(store.captureImage(data, sourceName: "Notes", sourceBundleID: "com.apple.Notes"))
+        XCTAssertEqual(store.entries.first?.id, id)
+        XCTAssertEqual(store.entries.first?.isFavorite, true)
+        store.clear(keepingFavorites: true)
+        let loaded = HistoryStore(fileURL: file)
+        let entry = try XCTUnwrap(loaded.entries.first)
+        XCTAssertEqual(entry.sourceBundleID, "com.apple.Notes")
+        XCTAssertEqual(loaded.imageData(for: entry), data)
+        loaded.remove(id: id)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: folder.appendingPathComponent("Images").path).isEmpty)
+    }
+
+    @MainActor
+    func testRepeatedMixedHistoryRolloverReloadAndClearNeverLeavesBrokenOrOrphanedImages() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("history.json")
+        var store = HistoryStore(fileURL: file, limit: 12)
+        for index in 0..<100 {
+            if index.isMultiple(of: 3) {
+                XCTAssertTrue(store.captureImage(try png(red: CGFloat(index % 10) / 10)))
+            } else {
+                store.capture("entry \(index)\n中文 🙂")
+            }
+            if index.isMultiple(of: 7), let id = store.entries.last?.id { store.remove(id: id) }
+            if index.isMultiple(of: 13) {
+                let expected = store.entries
+                store = HistoryStore(fileURL: file, limit: 12)
+                XCTAssertEqual(store.entries, expected)
+            }
+            XCTAssertLessThanOrEqual(store.entries.count, 12)
+            XCTAssertNil(store.storageIssue)
+            let images = store.entries.filter { $0.image != nil }
+            for entry in images { XCTAssertNotNil(store.imageData(for: entry)) }
+            let imageFolder = folder.appendingPathComponent("Images")
+            let diskFiles = (try? FileManager.default.contentsOfDirectory(atPath: imageFolder.path)) ?? []
+            XCTAssertEqual(Set(diskFiles), Set(images.compactMap { $0.image.map { $0.fingerprint + ".png" } }))
+        }
+        store.clear()
+        XCTAssertTrue(HistoryStore(fileURL: file).entries.isEmpty)
+        XCTAssertTrue(((try? FileManager.default.contentsOfDirectory(atPath: folder.appendingPathComponent("Images").path)) ?? []).isEmpty)
+    }
+
     private func png(red: CGFloat = 0.6) throws -> Data {
         let context = try XCTUnwrap(CGContext(data: nil, width: 8, height: 6, bitsPerComponent: 8,
                                              bytesPerRow: 32, space: CGColorSpaceCreateDeviceRGB(),
