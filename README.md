@@ -19,10 +19,10 @@ A small, native clipboard history for macOS 14+. Made by [tonngyou](https://gith
 - 按回车或点击记录：复制原始文字、返回之前的应用并自动粘贴。
 - 按 `Esc` 先清空搜索，再按一次关闭面板；右键“复制”可只复制、不自动粘贴。
 - 右键删除单条；更多菜单中暂停记录、清空历史或退出。
-- 文字与索引保存为本地 JSON，图片单独保存为 PNG；跟随系统使用简体中文、繁体中文或英文。
+- 文字与索引保存为本地 JSON，图片单独保存为 PNG；支持跟随系统或手动切换简体中文、繁體中文和英文。
 - 过滤声明为 concealed、transient、auto-generated 的内容及部分已知密码管理器来源。这不能识别所有敏感内容。
 
-当前支持纯文本与静态图片。没有收藏、同步、开机启动或自动更新。剪贴板按 0.5 秒间隔轮询，极短时间内连续复制的中间内容可能无法捕获。单条文字上限 256 KiB。
+当前支持纯文本与静态图片。支持在设置中选择开机自启动；没有收藏、同步或自动更新。剪贴板按 0.5 秒间隔轮询，极短时间内连续复制的中间内容可能无法捕获。单条文字上限 256 KiB。
 
 ## 图片的使用方式
 
@@ -66,6 +66,8 @@ A small, native clipboard history for macOS 14+. Made by [tonngyou](https://gith
 登录项状态以 macOS 为准，从系统设置返回后会刷新。请先把应用放入“应用程序”，避免注册后再移动应用。预览模式和直接运行 SwiftPM 可执行文件时不修改登录项；自动测试使用替身服务，不更改本机自启动设置。
 
 ## 安装到本机使用
+
+直接下载：[0.1.1 Release 与安装包](https://github.com/tonngyou/Clipmio/releases/tag/v0.1.1)。推荐 DMG，支持 Apple 芯片和 Intel，要求 macOS 14+。本预览版尚未经过 Developer ID 签名和 Apple 公证，首次打开可能需要按发布页说明手动确认。
 
 将构建好的 `dist/Clipmio.app` 拖到 **应用程序（Applications）** 文件夹，再双击打开；以后无需启动 Xcode。运行后点击菜单栏的 Clipmio 图标，或按 `⌘⇧V` 查看历史，没有 Dock 图标是正常行为。
 
