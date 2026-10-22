@@ -1,0 +1,13 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+jobs:
+  macOS:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test
+        run: swift test
+      - name: Build macOS application
+        run: xcodebuild -project Clipmio.xcodeproj -scheme Clipmio -configuration Release -destination 'generic/platform=macOS' CODE_SIGNING_ALLOWED=NO build
